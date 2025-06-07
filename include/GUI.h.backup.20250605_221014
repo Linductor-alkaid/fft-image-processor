@@ -1,0 +1,148 @@
+#ifndef GUI_H
+#define GUI_H
+
+// 标准库
+#include <vector>
+#include <string>
+#include <memory>
+#include <iostream>
+#include <algorithm>
+#include <cmath>
+
+// OpenGL相关
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+
+// 前向声明避免循环包含
+class ImageProcessor;
+class OpenGLRenderer;
+
+// ImGui相关 - 使用相对路径
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
+#include "implot/implot.h"
+
+// 简化的文件对话框实现（避免nfd依赖问题）
+namespace SimpleFileDialog {
+    std::string openFile(const char* filter = nullptr);
+    std::string saveFile(const char* filter = nullptr);
+}
+
+// 颜色映射类型
+enum class ColorMap {
+    GRAYSCALE,
+    JET,
+    HOT,
+    COOL,
+    VIRIDIS
+};
+
+// 显示模式
+enum class DisplayMode {
+    ORIGINAL_IMAGE,
+    FREQUENCY_MAGNITUDE,
+    FREQUENCY_PHASE,
+    FILTERED_IMAGE,
+    COMPARISON_VIEW
+};
+
+class GUI {
+private:
+    GLFWwindow* window;
+    std::unique_ptr<ImageProcessor> processor;
+    
+    // GUI状态变量
+    bool showMainWindow;
+    bool showImageWindow;
+    bool showFrequencyWindow;
+    bool showControlWindow;
+    bool showFilterWindow;
+    bool showStatsWindow;
+    bool showAboutWindow;
+    
+    // 图像显示相关
+    GLuint originalImageTexture;
+    GLuint frequencyMagnitudeTexture;
+    GLuint frequencyPhaseTexture;
+    GLuint filteredImageTexture;
+    DisplayMode currentDisplayMode;
+    ColorMap currentColorMap;
+    
+    // 滤波器参数
+    int filterType; // 0: 低通, 1: 高通, 2: 带通
+    float lowPassCutoff;
+    float highPassCutoff;
+    float bandPassLow;
+    float bandPassHigh;
+    bool autoApplyFilter;
+    
+    // 图像统计
+    struct ImageStats {
+        double mse;
+        double psnr;
+        double ssim;
+        double meanValue;
+        double stdValue;
+        double minValue;
+        double maxValue;
+    } originalStats, filteredStats;
+    
+    // 文件路径
+    std::string currentImagePath;
+    std::string lastSavePath;
+    
+    // 私有方法
+    void initializeGUI();
+    void setupCallbacks();
+    GLuint createTextureFromImage(const std::vector<std::vector<double>>& image, 
+                                  int width, int height, ColorMap colorMap);
+    void updateImageTextures();
+    void calculateImageStats(const std::vector<std::vector<double>>& image, ImageStats& stats);
+    void drawImageWithLegend(GLuint texture, int width, int height, 
+                           const std::string& title, const ImageStats& stats);
+    void drawFrequencyPlot();
+    void drawHistogram(const std::vector<std::vector<double>>& image, const std::string& title);
+    
+    // GUI窗口绘制方法
+    void drawMainMenuBar();
+    void drawImageWindow();
+    void drawFrequencyWindow();
+    void drawControlWindow();
+    void drawFilterWindow();
+    void drawStatsWindow();
+    void drawAboutWindow();
+    
+    // 文件操作
+    bool openImageFile();
+    bool saveCurrentImage();
+    bool saveImageAs();
+    void createTestImage();
+    
+    // 滤波器操作
+    void applyCurrentFilter();
+    void resetFilter();
+    void onFilterParameterChanged();
+    
+public:
+    GUI();
+    ~GUI();
+    
+    bool initialize();
+    void run();
+    void cleanup();
+    
+    // 静态回调函数
+    static void dropCallback(GLFWwindow* window, int count, const char** paths);
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+};
+
+// 工具函数
+namespace GuiUtils {
+    ImVec4 getColorFromValue(float value, ColorMap colorMap);
+    void drawColorBar(ColorMap colorMap, float minVal, float maxVal, const ImVec2& size);
+    std::string formatNumber(double value, int precision = 3);
+    void helpMarker(const char* desc);
+}
+
+#endif // GUI_H
