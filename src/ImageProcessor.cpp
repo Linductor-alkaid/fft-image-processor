@@ -354,7 +354,7 @@ void ImageProcessor::fft2D() {if (grayImage.empty()) {
         frequencyDomain.clear();
         frequencyDomain.resize(height, std::vector<Complex>(width));
         
-        // 初始化频域数据 - 重要：确保数据完整性
+        // 初始化频域数据 - 确保数据完整性
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 // 检查边界
@@ -386,6 +386,8 @@ void ImageProcessor::fft2D() {if (grayImage.empty()) {
         }
         
         std::cout << "2D FFT completed successfully" << std::endl;
+
+        frequencyDomain = fftShift(frequencyDomain);
         
         // 立即分析结果
         analyzeFrequencySpectrum();
@@ -402,7 +404,7 @@ std::vector<std::vector<double>> ImageProcessor::ifft2D(const std::vector<std::v
         return std::vector<std::vector<double>>();
     }
     
-    std::vector<std::vector<Complex>> temp = freqData;
+    std::vector<std::vector<Complex>> temp = ifftShift(freqData);
     
     try {
         // 对每一行进行IFFT
@@ -495,10 +497,9 @@ std::vector<std::vector<Complex>> ImageProcessor::lowPassFilter(double cutoffRat
     
     std::vector<std::vector<Complex>> filtered = frequencyDomain;
     
-    // FFT结果的低频分量在四个角落，需要进行频域中心化处理
     int centerX = width / 2;
     int centerY = height / 2;
-    double maxRadius = std::min(width, height) / 2.0 * cutoffRatio;
+    double maxRadius = sqrt(width * width + height * height) / 2.0 * cutoffRatio;
     
     std::cout << "Low-pass filter: cutoff=" << cutoffRatio 
               << ", radius=" << maxRadius 
@@ -508,12 +509,9 @@ std::vector<std::vector<Complex>> ImageProcessor::lowPassFilter(double cutoffRat
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             // 计算到频域中心的距离，考虑FFT的周期性
-            // FFT的DC分量在(0,0)，但我们需要移到中心来计算距离
-            int shiftedX = (x < centerX) ? x + centerX : x - centerX;
-            int shiftedY = (y < centerY) ? y + centerY : y - centerY;
             
-            double dx = shiftedX - centerX;
-            double dy = shiftedY - centerY;
+            double dx = double(x) - centerX;
+            double dy = double(y) - centerY;
             double distance = sqrt(dx * dx + dy * dy);
             
             // 如果距离超过截止半径，则将该频率分量置零
@@ -536,7 +534,7 @@ std::vector<std::vector<Complex>> ImageProcessor::highPassFilter(double cutoffRa
     
     int centerX = width / 2;
     int centerY = height / 2;
-    double minRadius = std::min(width, height) / 2.0 * cutoffRatio;
+    double minRadius = sqrt(width * width + height * height) / 2.0 * cutoffRatio;
     
     std::cout << "High-pass filter: cutoff=" << cutoffRatio 
               << ", radius=" << minRadius 
@@ -544,12 +542,9 @@ std::vector<std::vector<Complex>> ImageProcessor::highPassFilter(double cutoffRa
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            // 计算频域距离
-            int shiftedX = (x < centerX) ? x + centerX : x - centerX;
-            int shiftedY = (y < centerY) ? y + centerY : y - centerY;
             
-            double dx = shiftedX - centerX;
-            double dy = shiftedY - centerY;
+            double dx = double(x) - centerX;
+            double dy = double(y) - centerY;
             double distance = sqrt(dx * dx + dy * dy);
             
             // 如果距离小于截止半径，则将该频率分量置零
@@ -572,8 +567,8 @@ std::vector<std::vector<Complex>> ImageProcessor::bandPassFilter(double lowCutof
     
     int centerX = width / 2;
     int centerY = height / 2;
-    double minRadius = std::min(width, height) / 2.0 * lowCutoff;
-    double maxRadius = std::min(width, height) / 2.0 * highCutoff;
+    double minRadius = sqrt(width * width + height * height) / 2.0 * lowCutoff;
+    double maxRadius = sqrt(width * width + height * height) / 2.0 * highCutoff;
     
     std::cout << "Band-pass filter: low=" << lowCutoff 
               << ", high=" << highCutoff 
@@ -581,11 +576,9 @@ std::vector<std::vector<Complex>> ImageProcessor::bandPassFilter(double lowCutof
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            int shiftedX = (x < centerX) ? x + centerX : x - centerX;
-            int shiftedY = (y < centerY) ? y + centerY : y - centerY;
             
-            double dx = shiftedX - centerX;
-            double dy = shiftedY - centerY;
+            double dx = double(x) - centerX;
+            double dy = double(y) - centerY;
             double distance = sqrt(dx * dx + dy * dy);
             
             // 保留在指定频率范围内的分量
