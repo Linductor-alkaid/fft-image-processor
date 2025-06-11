@@ -137,10 +137,10 @@ brew install cmake glfw glew glm
 git clone https://github.com/Linductor-alkaid/fft-image-processor.git
 cd fft-image-processor
 
-# 🔨 编译
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+# 🔨 使用安装脚本编译
+
+chmod +x setup_dependecies.sh
+./setup_dependecies.sh
 
 # 🚀 运行
 ./fft_image_processor

@@ -175,7 +175,7 @@ namespace SimpleFileDialog {
         std::string filename;
         std::cout << "\n请输入保存路径 (例: output.png): ";
         std::cout.flush();
-                
+        
         std::cin.clear();
         if (std::cin.peek() == '\n') {
             std::cin.ignore();
