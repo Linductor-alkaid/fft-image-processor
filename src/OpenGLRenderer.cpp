@@ -381,7 +381,9 @@ GLuint OpenGLRenderer::compileShader(GLenum type, const char* source) {
 }
 
 void OpenGLRenderer::setupImageQuad() {
-    // 全屏四边形的顶点数据
+    // 先清理已有资源
+    cleanupImageQuad();
+    
     float quadVertices[] = {
         // 位置      // 纹理坐标
         -1.0f,  1.0f,  0.0f, 1.0f,
@@ -397,15 +399,13 @@ void OpenGLRenderer::setupImageQuad() {
     
     glGenVertexArrays(1, &imageVAO);
     glGenBuffers(1, &imageVBO);
-    
-    GLuint EBO;
-    glGenBuffers(1, &EBO);
+    glGenBuffers(1, &imageEBO);  // 使用成员变量
     
     glBindVertexArray(imageVAO);
     glBindBuffer(GL_ARRAY_BUFFER, imageVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
     
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, imageEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
     
     // 位置属性
@@ -420,6 +420,8 @@ void OpenGLRenderer::setupImageQuad() {
 }
 
 void OpenGLRenderer::setupAxisData() {
+    // 先清理已有资源
+    cleanupAxisData();
     // 创建坐标轴数据：X轴(红色)、Y轴(绿色)、Z轴(蓝色)
     // 每条轴线加上箭头指示正方向
     std::vector<float> axisVertices;
@@ -476,7 +478,10 @@ void OpenGLRenderer::setupAxisData() {
 }
 
 void OpenGLRenderer::setupVertexData(const std::vector<float>& vertices) {
-    // 计算摄像头中心点（基于Z值的中位数）
+    // 先清理已有资源
+    cleanupVertexData();
+    
+    // 计算摄像头中心点
     calculateCameraCenter(vertices);
     
     glGenVertexArrays(1, &VAO);
@@ -486,11 +491,11 @@ void OpenGLRenderer::setupVertexData(const std::vector<float>& vertices) {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
     
-    // 位置属性 (x, y, z)
+    // 位置属性
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     
-    // 颜色属性 (r, g, b)
+    // 颜色属性
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
     
@@ -541,7 +546,10 @@ void OpenGLRenderer::updateCamera() {
 }
 
 void OpenGLRenderer::setupImageTexture(const std::vector<std::vector<double>>& imageData, int width, int height) {
-    // 将 double 图像数据转换为 unsigned char
+    // 先清理已有纹理
+    cleanupTexture();
+    
+    // 将double图像数据转换为unsigned char
     std::vector<unsigned char> textureData(width * height);
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -727,34 +735,11 @@ void OpenGLRenderer::cursorPosCallback(GLFWwindow* window, double xpos, double y
 }
 
 void OpenGLRenderer::cleanup() {
-    if (VAO != 0) {
-        glDeleteVertexArrays(1, &VAO);
-        VAO = 0;
-    }
-    if (VBO != 0) {
-        glDeleteBuffers(1, &VBO);
-        VBO = 0;
-    }
-    if (imageVAO != 0) {
-        glDeleteVertexArrays(1, &imageVAO);
-        imageVAO = 0;
-    }
-    if (imageVBO != 0) {
-        glDeleteBuffers(1, &imageVBO);
-        imageVBO = 0;
-    }
-    if (axisVAO != 0) {
-        glDeleteVertexArrays(1, &axisVAO);
-        axisVAO = 0;
-    }
-    if (axisVBO != 0) {
-        glDeleteBuffers(1, &axisVBO);
-        axisVBO = 0;
-    }
-    if (textureID != 0) {
-        glDeleteTextures(1, &textureID);
-        textureID = 0;
-    }
+    cleanupVertexData();
+    cleanupImageQuad();
+    cleanupAxisData();
+    cleanupTexture();
+    
     if (shaderProgram != 0) {
         glDeleteProgram(shaderProgram);
         shaderProgram = 0;
@@ -792,4 +777,48 @@ void OpenGLRenderer::handleMouseWheel(float delta) {
     cameraRadius -= delta * 0.5f;
     cameraRadius = std::max(1.0f, std::min(20.0f, cameraRadius));
     updateCamera();
+}
+
+void OpenGLRenderer::cleanupVertexData() {
+    if (VAO != 0) {
+        glDeleteVertexArrays(1, &VAO);
+        VAO = 0;
+    }
+    if (VBO != 0) {
+        glDeleteBuffers(1, &VBO);
+        VBO = 0;
+    }
+}
+
+void OpenGLRenderer::cleanupImageQuad() {
+    if (imageVAO != 0) {
+        glDeleteVertexArrays(1, &imageVAO);
+        imageVAO = 0;
+    }
+    if (imageVBO != 0) {
+        glDeleteBuffers(1, &imageVBO);
+        imageVBO = 0;
+    }
+    if (imageEBO != 0) {
+        glDeleteBuffers(1, &imageEBO);
+        imageEBO = 0;
+    }
+}
+
+void OpenGLRenderer::cleanupAxisData() {
+    if (axisVAO != 0) {
+        glDeleteVertexArrays(1, &axisVAO);
+        axisVAO = 0;
+    }
+    if (axisVBO != 0) {
+        glDeleteBuffers(1, &axisVBO);
+        axisVBO = 0;
+    }
+}
+
+void OpenGLRenderer::cleanupTexture() {
+    if (textureID != 0) {
+        glDeleteTextures(1, &textureID);
+        textureID = 0;
+    }
 }

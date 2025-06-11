@@ -6,6 +6,21 @@
 #include <unordered_map>
 #include <filesystem>
 
+// 添加 nativefiledialog 支持
+#ifdef HAS_NATIVEFILEDIALOG
+    #include "nfd.h"
+#endif
+
+// 平台特定的头文件
+#ifdef HAS_WINDOWS_DIALOGS
+    #include <windows.h>
+    #include <commdlg.h>
+#endif
+
+#ifdef HAS_GTK3
+    #include <gtk/gtk.h>
+#endif
+
 // 文本映射系统 - 解决中文显示问题
 class TextManager {
 private:
@@ -147,14 +162,33 @@ bool TextManager::chinese_supported = false;
 // 便利宏
 #define T(text) TextManager::getText(text)
 
-// 简化文件对话框 - 修复卡死问题
+// 文件对话框 
 namespace SimpleFileDialog {
     std::string openFile(const char*) {
+#ifdef HAS_NATIVEFILEDIALOG
+        nfdchar_t *outPath = NULL;
+        
+        // 使用你的 API 版本：NFD_OpenDialog(filterList, defaultPath, outPath)
+        nfdresult_t result = NFD_OpenDialog("png,jpg,jpeg,bmp,tiff", NULL, &outPath);
+        
+        if (result == NFD_OKAY) {
+            std::string filepath(outPath);
+            free(outPath);  // 释放内存
+            std::cout << "✓ 选择文件: " << filepath << std::endl;
+            return filepath;
+        } else if (result == NFD_CANCEL) {
+            std::cout << "用户取消选择文件" << std::endl;
+        } else {
+            std::cerr << "文件对话框错误: " << NFD_GetError() << std::endl;
+        }
+        return "";
+#else
+        // 终端输入回退
         std::string filename;
-        std::cout << "\n请输入图像路径 (支持png,jpg,bmp格式): ";
+        std::cout << "\n=== 打开图像文件 ===" << std::endl;
+        std::cout << "请输入图像文件的完整路径: ";
         std::cout.flush();
         
-        // 确保清空输入缓冲区
         std::cin.clear();
         if (std::cin.peek() == '\n') {
             std::cin.ignore();
@@ -162,18 +196,47 @@ namespace SimpleFileDialog {
         
         std::getline(std::cin, filename);
         
-        // 去除首尾空格
         if (!filename.empty()) {
-            filename.erase(0, filename.find_first_not_of(" \t"));
-            filename.erase(filename.find_last_not_of(" \t") + 1);
+            filename.erase(0, filename.find_first_not_of(" \t\"'"));
+            filename.erase(filename.find_last_not_of(" \t\"'") + 1);
+        }
+        
+        if (!filename.empty() && std::filesystem::exists(filename)) {
+            std::cout << "✓ 文件找到: " << filename << std::endl;
+        } else if (!filename.empty()) {
+            std::cout << "✗ 文件不存在: " << filename << std::endl;
+            filename.clear();
+        } else {
+            std::cout << "操作已取消" << std::endl;
         }
         
         return filename;
+#endif
     }
     
     std::string saveFile(const char*) {
+#ifdef HAS_NATIVEFILEDIALOG
+        nfdchar_t *outPath = NULL;
+        
+        // 使用你的 API 版本：NFD_SaveDialog(filterList, defaultPath, outPath)
+        nfdresult_t result = NFD_SaveDialog("png", NULL, &outPath);
+        
+        if (result == NFD_OKAY) {
+            std::string filepath(outPath);
+            free(outPath);  // 释放内存
+            std::cout << "✓ 选择保存路径: " << filepath << std::endl;
+            return filepath;
+        } else if (result == NFD_CANCEL) {
+            std::cout << "用户取消保存" << std::endl;
+        } else {
+            std::cerr << "保存对话框错误: " << NFD_GetError() << std::endl;
+        }
+        return "";
+#else
+        // 终端输入回退
         std::string filename;
-        std::cout << "\n请输入保存路径 (例: output.png): ";
+        std::cout << "\n=== 保存图像文件 ===" << std::endl;
+        std::cout << "请输入保存路径 (例: /home/user/output.png): ";
         std::cout.flush();
         
         std::cin.clear();
@@ -184,12 +247,32 @@ namespace SimpleFileDialog {
         std::getline(std::cin, filename);
         
         if (!filename.empty()) {
-            filename.erase(0, filename.find_first_not_of(" \t"));
-            filename.erase(filename.find_last_not_of(" \t") + 1);
+            filename.erase(0, filename.find_first_not_of(" \t\"'"));
+            filename.erase(filename.find_last_not_of(" \t\"'") + 1);
+        }
+        
+        if (!filename.empty() && filename.find('.') == std::string::npos) {
+            filename += ".png";
+            std::cout << "自动添加扩展名: " << filename << std::endl;
+        }
+        
+        if (!filename.empty()) {
+            std::cout << "✓ 将保存到: " << filename << std::endl;
+        } else {
+            std::cout << "操作已取消" << std::endl;
         }
         
         return filename;
+#endif
     }
+}
+
+// 清理NFD（在GUI清理时调用）
+void cleanupFileDialogs() {
+#ifdef HAS_NATIVEFILEDIALOG
+    // 旧版本 nativefiledialog 不需要显式清理
+    std::cout << "nativefiledialog 已完成" << std::endl;
+#endif
 }
 
 // GuiUtils完整实现
@@ -356,6 +439,18 @@ GUI::GUI() :
     filteredStats = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 }
 
+// 初始化NFD（在GUI初始化时调用）
+bool initializeFileDialogs() {
+#ifdef HAS_NATIVEFILEDIALOG
+    // 旧版本 nativefiledialog 不需要显式初始化
+    std::cout << "✓ nativefiledialog 就绪（旧版本API）" << std::endl;
+    return true;
+#else
+    std::cout << "⚠ 使用终端文件输入模式" << std::endl;
+    return false;
+#endif
+}
+
 GUI::~GUI() {
     cleanup();
     cleanup3DRenderer();
@@ -456,6 +551,9 @@ bool GUI::initialize() {
         return false;
     }
     
+    // 初始化文件对话框
+    initializeFileDialogs();
+    
     setupCallbacks();
     initializeGUI();
     
@@ -464,7 +562,7 @@ bool GUI::initialize() {
     processor->fft2D();
     updateImageTextures();
     
-    std::cout << "GUI initialized successfully! Chinese font support enabled." << std::endl;
+    std::cout << "GUI initialized successfully!" << std::endl;
     
     return true;
 }
@@ -553,24 +651,20 @@ void GUI::drawMainMenuBar() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("文件")) {
             if (ImGui::MenuItem("打开图像", "Ctrl+O")) {
-                // 使用异步方式避免卡死
-                std::thread([this]() {
-                    this->openImageFile();
-                }).detach();
+                // 直接同步调用，不使用异步线程
+                openImageFile();
             }
             if (ImGui::MenuItem("创建测试图像", "Ctrl+T")) {
                 createTestImage();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("保存图像", "Ctrl+S", false, processor->getWidth() > 0)) {
-                std::thread([this]() {
-                    this->saveCurrentImage();
-                }).detach();
+                // 直接同步调用
+                saveCurrentImage();
             }
             if (ImGui::MenuItem("另存为...", "Ctrl+Shift+S", false, processor->getWidth() > 0)) {
-                std::thread([this]() {
-                    this->saveImageAs();
-                }).detach();
+                // 直接同步调用
+                saveImageAs();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("退出", "Alt+F4")) {
@@ -1394,6 +1488,9 @@ void GUI::cleanup() {
     if (frequencyMagnitudeTexture) glDeleteTextures(1, &frequencyMagnitudeTexture);
     if (frequencyPhaseTexture) glDeleteTextures(1, &frequencyPhaseTexture);
     if (filteredImageTexture) glDeleteTextures(1, &filteredImageTexture);
+
+    // 清理文件对话框
+    cleanupFileDialogs();
     
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -1436,13 +1533,13 @@ void GUI::keyCallback(GLFWwindow* window, int key, int, int action, int mods) {
     if (gui && action == GLFW_PRESS && (mods & GLFW_MOD_CONTROL)) {
         switch (key) {
             case GLFW_KEY_O:
-                std::thread([gui]() { gui->openImageFile(); }).detach();
+                gui->openImageFile();  // 直接同步调用
                 break;
             case GLFW_KEY_S:
                 if (mods & GLFW_MOD_SHIFT) {
-                    std::thread([gui]() { gui->saveImageAs(); }).detach();
+                    gui->saveImageAs();  // 直接同步调用
                 } else {
-                    std::thread([gui]() { gui->saveCurrentImage(); }).detach();
+                    gui->saveCurrentImage();  // 直接同步调用
                 }
                 break;
             case GLFW_KEY_T:
@@ -1453,33 +1550,46 @@ void GUI::keyCallback(GLFWwindow* window, int key, int, int action, int mods) {
 }
 
 bool GUI::openImageFile() {
+    std::cout << "正在打开文件..." << std::endl;
+    
     std::string filename = SimpleFileDialog::openFile("");
+    
     if (!filename.empty()) {
         currentImagePath = filename;
+        std::cout << "尝试加载: " << filename << std::endl;
+        
         if (processor->loadImage(filename)) {
             processor->fft2D();
             updateImageTextures();
-            std::cout << "图像加载成功: " << filename << std::endl;
+            std::cout << "✓ 图像加载成功!" << std::endl;
             return true;
         } else {
-            std::cout << "图像加载失败: " << filename << std::endl;
+            std::cout << "✗ 图像加载失败，请检查文件格式" << std::endl;
         }
     }
+    
     return false;
 }
 
 bool GUI::saveImageAs() {
+    if (processor->getWidth() == 0) {
+        std::cout << "✗ 没有图像可保存" << std::endl;
+        return false;
+    }
+    
     std::string filename = SimpleFileDialog::saveFile("");
+    
     if (!filename.empty()) {
         lastSavePath = filename;
         return saveCurrentImage();
     }
+    
     return false;
 }
 
 bool GUI::saveCurrentImage() {
     if (processor->getWidth() == 0) {
-        std::cout << "没有图像可保存" << std::endl;
+        std::cout << "✗ 没有图像可保存" << std::endl;
         return false;
     }
     
@@ -1487,38 +1597,43 @@ bool GUI::saveCurrentImage() {
         return saveImageAs();
     }
     
-    // 根据当前显示模式保存相应的图像
-    std::vector<std::vector<double>> imageToSave;
-    
-    switch (currentDisplayMode) {
-        case DisplayMode::ORIGINAL_IMAGE:
-            imageToSave = processor->getGrayImage();
-            break;
-        case DisplayMode::FILTERED_IMAGE:
-            // 获取当前滤波后的图像
-            {
-                std::vector<std::vector<Complex>> filteredFreq;
-                switch (filterType) {
-                    case 0: filteredFreq = processor->lowPassFilter(lowPassCutoff); break;
-                    case 1: filteredFreq = processor->highPassFilter(highPassCutoff); break;
-                    case 2: filteredFreq = processor->bandPassFilter(bandPassLow, bandPassHigh); break;
-                    default: filteredFreq = processor->getFrequencyDomain(); break;
+    try {
+        // 根据当前显示模式保存相应的图像
+        std::vector<std::vector<double>> imageToSave;
+        
+        switch (currentDisplayMode) {
+            case DisplayMode::ORIGINAL_IMAGE:
+                imageToSave = processor->getGrayImage();
+                break;
+            case DisplayMode::FILTERED_IMAGE:
+                // 获取当前滤波后的图像
+                {
+                    std::vector<std::vector<Complex>> filteredFreq;
+                    switch (filterType) {
+                        case 0: filteredFreq = processor->lowPassFilter(lowPassCutoff); break;
+                        case 1: filteredFreq = processor->highPassFilter(highPassCutoff); break;
+                        case 2: filteredFreq = processor->bandPassFilter(bandPassLow, bandPassHigh); break;
+                        default: filteredFreq = processor->getFrequencyDomain(); break;
+                    }
+                    imageToSave = processor->ifft2D(filteredFreq);
                 }
-                imageToSave = processor->ifft2D(filteredFreq);
-            }
-            break;
-        default:
-            imageToSave = processor->getGrayImage();
-            break;
+                break;
+            default:
+                imageToSave = processor->getGrayImage();
+                break;
+        }
+        
+        bool success = processor->saveImage(lastSavePath, imageToSave);
+        if (success) {
+            std::cout << "✓ 图像保存成功: " << lastSavePath << std::endl;
+        } else {
+            std::cout << "✗ 图像保存失败: " << lastSavePath << std::endl;
+        }
+        return success;
+    } catch (const std::exception& e) {
+        std::cerr << "保存图像时发生错误: " << e.what() << std::endl;
+        return false;
     }
-    
-    bool success = processor->saveImage(lastSavePath, imageToSave);
-    if (success) {
-        std::cout << "图像保存成功: " << lastSavePath << std::endl;
-    } else {
-        std::cout << "图像保存失败: " << lastSavePath << std::endl;
-    }
-    return success;
 }
 
 void GUI::createTestImage() {

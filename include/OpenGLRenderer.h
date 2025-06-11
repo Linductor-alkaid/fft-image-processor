@@ -14,6 +14,7 @@ private:
     GLuint shaderProgram, imageShaderProgram, axisShaderProgram;
     GLuint VAO, VBO, imageVAO, imageVBO, axisVAO, axisVBO;
     GLuint textureID;
+    GLuint imageEBO; 
     glm::mat4 view, projection;
     float cameraAngle;
     int displayMode; // 0: 原图, 1: 频域3D, 2: 重建图
@@ -40,6 +41,12 @@ private:
     void renderImage(const std::vector<std::vector<double>>& imageData, int width, int height);
     void updateCamera();
     void calculateCameraCenter(const std::vector<float>& vertices);
+
+    // 添加清理单个资源的辅助方法
+    void cleanupVertexData();
+    void cleanupImageQuad();
+    void cleanupAxisData();
+    void cleanupTexture();
     
 public:
     OpenGLRenderer();

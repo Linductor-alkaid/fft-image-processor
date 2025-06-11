@@ -16,7 +16,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "请确保安装了以下依赖包："
     echo "sudo apt update"
     echo "sudo apt install cmake build-essential"
-    echo "sudo apt install libglfw3-dev libglew-dev"
+    echo "sudo apt install libglfw3-dev libglew-dev libgtk-3-dev"
     echo ""
     
     # 检查是否安装了必要的包
@@ -34,6 +34,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     check_package "build-essential"
     check_package "libglfw3-dev"
     check_package "libglew-dev"
+    check_package "libgtk-3-dev"
     
     if [ ! -z "$MISSING_PACKAGES" ]; then
         echo ""
